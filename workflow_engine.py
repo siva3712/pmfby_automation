@@ -156,6 +156,28 @@ class WorkflowEngine:
 
             self.process_account(account)
 
+              ##################################################
+            # Refresh statistics after processing account
+            ##################################################
+
+            if self.progress_callback:
+
+                self.progress_callback(
+
+                    current=index,
+
+                    total=total,
+
+                    account=account.account_no,
+
+                    success=self.reporter.success_count,
+
+                    failed=self.reporter.failed_count,
+
+                    skipped=self.reporter.skipped_count
+
+                )
+
     ##########################################################
 
     def process_account(self, account):

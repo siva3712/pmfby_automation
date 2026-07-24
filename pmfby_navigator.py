@@ -145,82 +145,51 @@ class PMFBYNavigator:
 
     ##########################################################
 
-  ##########################################################
-
    ##########################################################
 
     def return_to_kcc_beneficiary(self):
 
         ##################################################
-        # Maximum recovery attempts
+        # Already there
         ##################################################
 
-        for _ in range(5):
+        if self.is_kcc_beneficiary_page():
 
-            ##################################################
-            # Already on KCC page
-            ##################################################
+            self.prepare_account_search()
 
-            if self.is_kcc_beneficiary_page():
-
-                self.prepare_account_search()
-
-                return True
-
-            ##################################################
-            # Preview Page
-            ##################################################
-
-            if self.try_back():
-
-                continue
-
-            ##################################################
-            # Aadhaar Page
-            ##################################################
-
-            if self.try_go_to_kcc():
-
-                continue
-
-            ##################################################
-            # Give React time
-            ##################################################
-
-            self.page.wait_for_timeout(500)
+            return True
 
         ##################################################
+        # If inside policy module, go Home first
+        ##################################################
 
-        return False
+        if "policyclaim" in self.page.url.lower():
 
-    ##########################################################
-
-    def try_back(self):
-
-        try:
-
-            back = self.page.get_by_text(
-                "← Back",
-                exact=True
+            self.page.goto(
+                "https://pmfby.gov.in/kccBeneficiary"
             )
 
-            if back.is_visible(timeout=1000):
+            self.page.wait_for_selector(
+                Selectors.SEARCH_BY,
+                timeout=10000
+            )
 
-                back.click()
+            self.prepare_account_search()
 
-                # self.wait.ajax_complete()
-                self.page.wait_for_timeout(500)
+            return True
+        ##################################################
+        # Now navigate using menu
+        ##################################################
 
-                return True
+        if self.try_go_to_kcc():
 
-        except Exception:
+            self.prepare_account_search()
 
-            pass
+            return True
 
         return False
 
-        ##########################################################
-
+   
     def try_go_to_kcc(self):
 
         ##################################################

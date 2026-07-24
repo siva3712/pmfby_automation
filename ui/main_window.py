@@ -1083,6 +1083,24 @@ class MainWindow:
             )
 
             ##################################################
+            # Final UI Refresh
+            ##################################################
+
+            self.update_progress(
+
+                current=len(accounts),
+
+                total=len(accounts),
+
+                success=self.reporter.success_count,
+
+                failed=self.reporter.failed_count,
+
+                skipped=self.reporter.skipped_count
+
+            )
+
+            ##################################################
             # Export Report
             ##################################################
 
@@ -1450,6 +1468,7 @@ class MainWindow:
             self.skipped_count.set(
                 str(skipped)
             )
+        self.root.update_idletasks()
     def run(self):
 
         self.root.mainloop()
