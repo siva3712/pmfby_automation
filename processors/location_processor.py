@@ -212,8 +212,10 @@ class LocationProcessor:
         )
 
         ##################################################
+        # Select Gram Panchayat
+        gp = account.gram_panchayat.strip().lower()
 
-        if account.gram_panchayat.strip().lower() == "na":
+        if gp in ("na","not available"):
 
             label = "not available"
 

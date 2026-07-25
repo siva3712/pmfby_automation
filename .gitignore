@@ -1,0 +1,30 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environment & Downloaded Browsers
+venv/
+env/
+ENV/
+browsers/
+
+# PyInstaller Build Artifacts & Large Zips
+build/
+dist/
+*.zip
+*.exe
+*.manifest
+*.spec.old
+
+# IDE / Editor Files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Project Output Reports & Excel Temporary Files
+reports/
+*.xlsx
+*.csv
+~$*.xlsx

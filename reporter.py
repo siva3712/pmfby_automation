@@ -2,6 +2,8 @@ from datetime import datetime
 from pathlib import Path
 
 from openpyxl import Workbook
+import os
+import sys
 
 
 class Reporter:
@@ -20,9 +22,23 @@ class Reporter:
         self.failed_count = 0
         self.skipped_count = 0
 
-        Path("reports").mkdir(
-            exist_ok=True
-        )
+        ##################################################
+        # Application Folder
+        ##################################################
+
+        if getattr(sys, "frozen", False):
+
+            self.base_path = Path(sys.executable).parent
+
+        else:
+
+            self.base_path = Path(__file__).resolve().parent
+
+        ##################################################
+
+        self.report_path = self.base_path / "reports"
+
+        self.report_path.mkdir(exist_ok=True)
 
     ########################################################
     # Generic Logger
@@ -247,11 +263,12 @@ class Reporter:
 
             ])
 
-        filename = datetime.now().strftime(
-                "reports/PMFBY_Report_%Y%m%d_%H%M%S.xlsx"
-            )
+        filename = self.report_path / datetime.now().strftime(
+            "PMFBY_Report_%Y%m%d_%H%M%S.xlsx"
+        )
 
         workbook.save(filename)
+
 
         self.log(
 
