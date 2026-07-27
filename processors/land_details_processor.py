@@ -301,28 +301,31 @@ class LandDetailsProcessor:
             )
 
             ##################################################
-            # Premium
+            # Premium Date
             ##################################################
-
-            premium = self.page.locator(
-                Selectors.PREMIUM_DATE
-            )
-
-            premium.fill(
-                crop.premium_debit_date.strftime("%d/%m/%Y")
-            )
+            premium = self.page.locator(Selectors.PREMIUM_DATE)
+            
+            # If standard date input, YYYY-MM-DD prevents month flipping
+            date_str_iso = crop.premium_debit_date.strftime("%Y-%m-%d")
+            premium.fill(date_str_iso)
+            
+            # Trigger JS state listeners on the form
+            premium.dispatch_event("input")
+            premium.dispatch_event("change")
+            premium.press("Tab")
 
             ##################################################
-            # Sowing
+            # Sowing Date
             ##################################################
-
-            sowing = self.page.locator(
-                Selectors.SOWING_DATE
-            )
-
-            sowing.fill(
-                crop.sowing_date.strftime("%d/%m/%Y")
-            )
+            sowing = self.page.locator(Selectors.SOWING_DATE)
+            
+            sowing_str_iso = crop.sowing_date.strftime("%Y-%m-%d")
+            sowing.fill(sowing_str_iso)
+            
+            # Trigger JS state listeners on the form
+            sowing.dispatch_event("input")
+            sowing.dispatch_event("change")
+            sowing.press("Tab")
 
             ##################################################
             # IMPORTANT
