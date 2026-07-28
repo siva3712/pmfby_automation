@@ -87,7 +87,9 @@ class LandDetailsProcessor:
 
                     account_no,
 
-                    survey
+                    survey,
+
+                    khata.khata_no
 
                 )
 
@@ -372,7 +374,9 @@ class LandDetailsProcessor:
 
         account_no,
 
-        survey
+        survey,
+
+        khata_no
 
     ):
 
@@ -386,74 +390,189 @@ class LandDetailsProcessor:
 
         )
 
+        ##################################################
+        # Click Verify
+        ##################################################
+
         self.wait.click(
 
             self.page.locator(
+
                 Selectors.VERIFY_LAND
+
             )
 
         )
 
-        radio = self.page.locator(
-            Selectors.LAND_RADIO
-        )
-
-        # modal = self.page.get_by_text(
-        #     "Farmer's Land Details From Land Record"
-        # )
-
-        close = self.page.locator(
-            "div.custom__modalHeader___3PkpK button.close"
-        )
-
         ##################################################
-        # Wait up to 10 seconds
+        # Wait for modal
         ##################################################
 
-        for _ in range(50):
+        try:
 
-            if radio.count() > 0 and radio.is_visible():
+            self.page.locator(
 
-                land = self.fetch_land_information()
+                "text=Farmer's Land Details From Land Record"
 
-                self.wait.check(radio)
+            ).wait_for(
 
-                return {
+                timeout=10000
 
-                    "success": True,
+            )
 
-                    "land": land
+        except Exception:
 
-                }
+            return {
 
-            if close.count() > 0 and close.is_visible():
+                "success": False,
+
+                "message": "Verification timeout."
+
+            }
+
+        ##################################################
+        # Find radio buttons
+        ##################################################
+
+        radios = self.page.locator(
+
+            "input[name='utrList']"
+
+        )
+
+        radio_count = radios.count()
+
+        ##################################################
+        # Survey not found
+        ##################################################
+
+        if radio_count == 0:
+
+            self.close_land_modal()
+
+            return {
+
+                "success": False,
+
+                "message": f"{survey} not found in land records."
+
+            }
+
+        ##################################################
+        # Single record
+        ##################################################
+
+        if radio_count == 1:
+
+            row = radios.first.locator(
+                "xpath=ancestor::tr"
+            )
+
+            ##################################################
+            # Read details BEFORE clicking
+            ##################################################
+
+            land = self.fetch_land_information(row)
+
+            ##################################################
+            # Now select radio
+            ##################################################
+
+            self.wait.click(
+
+                row.locator(
+                    "input[name='utrList']"
+                )
+
+            )
+
+        ##################################################
+        # Multiple records
+        ##################################################
+
+        else:
+
+            matched = None
+
+            rows = radios.locator(
+                "xpath=ancestor::tr"
+            )
+
+            for i in range(rows.count()):
+
+                current = rows.nth(i)
+
+                cells = current.locator("td")
+
+                if cells.nth(3).inner_text().strip() == str(khata_no):
+
+                    ##################################################
+                    # Read details BEFORE clicking
+                    ##################################################
+
+                    land = self.fetch_land_information(
+                        current
+                    )
+
+                    ##################################################
+                    # Select matching radio
+                    ##################################################
+
+                    self.wait.click(
+
+                        current.locator(
+                            "input[name='utrList']"
+                        )
+
+                    )
+
+                    matched = current
+
+                    break
+
+            ##################################################
+            # Khata not found
+            ##################################################
+
+            if matched is None:
 
                 self.close_land_modal()
-
-                #self.clear_crop_row()
 
                 return {
 
                     "success": False,
 
-                    "message": f"{survey} not found in land records."
+                    "message": f"Khata {khata_no} not found."
 
                 }
 
-            self.page.wait_for_timeout(200)
+        ##################################################
+        # Wait for Submit button
+        ##################################################
+
+        self.page.locator(
+
+            Selectors.LAND_SUBMIT
+
+        ).wait_for(
+
+            state="visible",
+
+            timeout=5000
+
+        )
 
         ##################################################
-        # Nothing happened
+        # Success
         ##################################################
 
         return {
 
-            "success": False,
+            "success": True,
 
-            "message": "Verification timeout."
+            "land": land
 
         }
-    ##########################################################
 
     def submit_land(
 
@@ -466,27 +585,85 @@ class LandDetailsProcessor:
     ):
 
         ##################################################
+        # Wait for Remaining Area
+        ##################################################
+
+        self.page.locator(
+
+            "text=Remaining Area"
+
+        ).wait_for(
+
+            timeout=5000
+
+        )
+
+        ##################################################
+        # Read Remaining Area
+        ##################################################
+
+        try:
+
+            remaining = self.page.locator(
+
+                "p:has-text('Remaining Area') span"
+
+            ).inner_text().strip()
+
+            remaining_area = float(remaining)
+
+        except Exception:
+
+            remaining_area = 0
+
+        ##################################################
+        # No Remaining Area
+        ##################################################
+
+        if remaining_area <= 0:
+
+            self.reporter.warning(
+
+                account_no,
+
+                "LAND",
+
+                f"{survey} has no remaining insurable area."
+
+            )
+
+            self.close_land_modal()
+
+            return False
+
+        ##################################################
         # Submit
         ##################################################
 
         self.wait.click(
 
             self.page.locator(
+
                 Selectors.LAND_SUBMIT
+
             )
 
         )
 
         ##################################################
-        # Wait for Add Crop button
+        # Wait Add Crop
         ##################################################
 
         add_crop = self.page.locator(
+
             Selectors.ADD_CROP
+
         )
 
         self.wait.visible(
+
             add_crop
+
         )
 
         ##################################################
@@ -494,11 +671,13 @@ class LandDetailsProcessor:
         ##################################################
 
         self.wait.click(
+
             add_crop
+
         )
 
         ##################################################
-        # Verify crop added to summary
+        # Verify survey added
         ##################################################
 
         row = self.page.locator(
@@ -510,7 +689,9 @@ class LandDetailsProcessor:
         try:
 
             row.wait_for(
-                timeout=2000
+
+                timeout=3000
+
             )
 
         except TimeoutError:
@@ -528,11 +709,13 @@ class LandDetailsProcessor:
             return False
 
         ##################################################
-        # Wait until entry row becomes blank
+        # Wait entry row clears
         ##################################################
 
         crop = self.page.locator(
+
             Selectors.CROP
+
         )
 
         for _ in range(20):
@@ -541,7 +724,15 @@ class LandDetailsProcessor:
 
                 break
 
-            self.page.wait_for_timeout(100)
+            self.page.wait_for_timeout(
+
+                100
+
+            )
+
+        ##################################################
+        # SUCCESS
+        ##################################################
 
         self.reporter.log(
 
@@ -556,18 +747,12 @@ class LandDetailsProcessor:
         )
 
         return True
-
     ###########################################################
     # Fetch land information to log the details in reporter
     ###########################################################
-    def fetch_land_information(self):
+    def fetch_land_information(self,row):
 
-        row = self.page.locator(
-            "input[name='utrList']"
-        ).locator(
-            "xpath=ancestor::tr"
-        )
-
+       
         cells = row.locator("td")
 
         return {
