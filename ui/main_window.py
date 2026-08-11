@@ -19,6 +19,16 @@ from workflow_engine import WorkflowEngine
 
 from workers.background_worker import BackgroundWorker
 from datetime import datetime 
+from not_eligible.validator import (
+    NotEligibleExcelValidator
+)
+from not_eligible.excel_reader import (
+    NotEligibleExcelReader
+)
+
+from not_eligible.workflow_engine import (
+    NotEligibleWorkflowEngine
+)
 
 
 class MainWindow:
@@ -52,6 +62,12 @@ class MainWindow:
         self.excel_file = tk.StringVar()
         self.mobile = tk.StringVar()
         self.password = tk.StringVar()
+
+        self.pdf_file = tk.StringVar()
+
+        self.operation = tk.StringVar(
+            value="Create Crop Insurance Policy"
+        )
 
         ##################################################
         # Runtime Objects
@@ -233,22 +249,189 @@ class MainWindow:
         self.clear_button.pack(side="left", padx=5)
 
         # Upload Actions Card
-        upload_frame = ttk.LabelFrame(top_container, text=" Execution ", style="Card.TLabelframe")
-        upload_frame.grid(row=0, column=1, sticky="nsew")
+        ##################################################
+        # Execution Card
+        ##################################################
+
+        upload_frame = ttk.LabelFrame(
+            top_container,
+            text=" Execution ",
+            style="Card.TLabelframe"
+        )
+
+        upload_frame.grid(
+            row=0,
+            column=1,
+            sticky="nsew"
+        )
+
+        ##################################################
+        # Operation
+        ##################################################
 
         ttk.Label(
             upload_frame,
+            text="Operation",
+            style="Title.TLabel"
+        ).pack(
+            anchor="w",
+            padx=10,
+            pady=(8, 2)
+        )
+
+        self.operation_combo = ttk.Combobox(
+
+            upload_frame,
+
+            textvariable=self.operation,
+
+            values=[
+                "Create Crop Insurance Policy",
+                "Mark Account Not Eligible"
+            ],
+
+            state="readonly"
+
+        )
+
+        self.operation_combo.pack(
+            fill="x",
+            padx=10,
+            pady=(0, 6)
+        )
+
+        self.operation_combo.bind(
+            "<<ComboboxSelected>>",
+            self.operation_changed
+        )
+
+        ##################################################
+        # PDF
+        ##################################################
+
+        self.pdf_frame = tk.Frame(
+            upload_frame,
+            bg="white"
+        )
+
+        self.pdf_frame.pack(
+            fill="x",
+            padx=10,
+            pady=2
+        )
+
+        ttk.Label(
+            self.pdf_frame,
+            text="Unified PDF",
+            style="Title.TLabel"
+        ).pack(
+            anchor="w"
+        )
+
+        pdf_row = tk.Frame(
+            self.pdf_frame,
+            bg="white"
+        )
+
+        pdf_row.pack(
+            fill="x"
+        )
+
+        self.pdf_entry = ttk.Entry(
+            pdf_row,
+            textvariable=self.pdf_file
+        )
+
+        self.pdf_entry.pack(
+            side="left",
+            fill="x",
+            expand=True
+        )
+
+        self.pdf_browse_button = ttk.Button(
+            pdf_row,
+            text="Browse",
+            command=self.browse_pdf
+        )
+
+        self.pdf_browse_button.pack(
+            side="left",
+            padx=(4, 0)
+        )
+
+        ##################################################
+        # Warning
+        ##################################################
+
+        ttk.Label(
+
+            upload_frame,
+
             text="⚠️ Select Scheme and Branch in PMFBY portal after login.",
+
             style="Warning.TLabel",
+
             wraplength=220,
+
             justify="center"
-        ).pack(anchor="center", padx=10, pady=(8, 4))
 
-        self.upload_button = ttk.Button(upload_frame, text="Start Upload", command=self.start_upload, state="disabled", style="Primary.TButton")
-        self.upload_button.pack(fill="x", padx=15, pady=3)
+        ).pack(
+            anchor="center",
+            padx=10,
+            pady=(6, 4)
+        )
 
-        self.cancel_button = ttk.Button(upload_frame, text="Cancel Upload", command=self.cancel_upload, state="disabled")
-        self.cancel_button.pack(fill="x", padx=15, pady=(3, 8))
+        ##################################################
+        # Start
+        ##################################################
+
+        self.upload_button = ttk.Button(
+
+            upload_frame,
+
+            text="Start Processing",
+
+            command=self.start_processing,
+
+            state="disabled",
+
+            style="Primary.TButton"
+
+        )
+
+        self.upload_button.pack(
+            fill="x",
+            padx=15,
+            pady=3
+        )
+
+        ##################################################
+        # Cancel
+        ##################################################
+
+        self.cancel_button = ttk.Button(
+
+            upload_frame,
+
+            text="Cancel",
+
+            command=self.cancel_upload,
+
+            state="disabled"
+
+        )
+
+        self.cancel_button.pack(
+            fill="x",
+            padx=15,
+            pady=(3, 8)
+        )
+
+        ##################################################
+        # Initially hide PDF
+        ##################################################
+
+        self.pdf_frame.pack_forget()
 
     def create_progress_card(self):
 
@@ -333,38 +516,186 @@ class MainWindow:
 
     def download_template(self):
 
-        if getattr(sys, "frozen", False):
-            source = (
-                Path(sys.executable).parent
-                / "_internal"
-                / "templates"
-                / "PMFBY_Template.xlsx"
-            )
-        else:
-            source = (
-                Path(__file__).resolve().parent.parent
-                / "templates"
-                / "PMFBY_Template.xlsx"
-            )
+        ##################################################
+        # Ask destination folder
+        ##################################################
 
-        destination = filedialog.asksaveasfilename(
-            title="Save Template",
-            initialfile="PMFBY_Template.xlsx",
-            defaultextension=".xlsx",
-            filetypes=[("Excel Workbook", "*.xlsx")]
+        destination_folder = filedialog.askdirectory(
+
+            title="Select folder to save PMFBY templates"
+
         )
 
-        if not destination:
+        if not destination_folder:
+
             return
 
-        shutil.copy2(source, destination)
-        messagebox.showinfo("Template", "Template downloaded successfully.")
+        ##################################################
+        # Determine application base directory
+        ##################################################
 
+        if getattr(sys, "frozen", False):
+
+            # PyInstaller application
+            base_path = Path(
+                sys.executable
+            ).resolve().parent
+
+            template_path = (
+                base_path
+                / "_internal"
+                / "templates"
+            )
+
+        else:
+
+            # Development
+            base_path = Path(
+                __file__
+            ).resolve().parent.parent
+
+            template_path = (
+                base_path
+                / "templates"
+            )
+
+        ##################################################
+        # Template files
+        ##################################################
+
+        policy_template = (
+            template_path
+            / "PMFBY_Template.xlsx"
+        )
+
+        not_eligible_template = (
+            template_path
+            / "PMFBY_NotEligible_Template.xlsx"
+        )
+
+        ##################################################
+        # Debug log - useful during development
+        ##################################################
+
+        self.write_log(
+            f"Template directory: {template_path}"
+        )
+
+        self.write_log(
+            f"Policy template: {policy_template}"
+        )
+
+        self.write_log(
+            f"Not Eligible template: {not_eligible_template}"
+        )
+
+        ##################################################
+        # Check policy template
+        ##################################################
+
+        if not policy_template.is_file():
+
+            messagebox.showerror(
+
+                "Template Error",
+
+                f"Policy template was not found.\n\n"
+                f"Expected location:\n"
+                f"{policy_template}"
+
+            )
+
+            return
+
+        ##################################################
+        # Check Not Eligible template
+        ##################################################
+
+        if not not_eligible_template.is_file():
+
+            messagebox.showerror(
+
+                "Template Error",
+
+                f"Not Eligible template was not found.\n\n"
+                f"Expected location:\n"
+                f"{not_eligible_template}"
+
+            )
+
+            return
+
+        ##################################################
+        # Copy templates
+        ##################################################
+
+        try:
+
+            destination = Path(
+                destination_folder
+            )
+
+            shutil.copy2(
+
+                policy_template,
+
+                destination
+                / "PMFBY_Template.xlsx"
+
+            )
+
+            shutil.copy2(
+
+                not_eligible_template,
+
+                destination
+                / "PMFBY_NotEligible_Template.xlsx"
+
+            )
+
+            ##################################################
+            # Success
+            ##################################################
+
+            self.write_log(
+                "Both PMFBY templates copied successfully."
+            )
+
+            messagebox.showinfo(
+
+                "Templates",
+
+                "Both PMFBY templates were downloaded successfully."
+
+            )
+
+        except Exception as ex:
+
+            self.write_log(
+                f"Template copy failed: {str(ex)}"
+            )
+
+            messagebox.showerror(
+
+                "Template Error",
+
+                f"Unable to download templates.\n\n"
+                f"{str(ex)}"
+
+            )
     def clear_form(self):
 
         self.excel_file.set("")
         self.mobile.set("")
         self.password.set("")
+
+        self.pdf_file.set("")
+
+        self.operation.set(
+            "Create Crop Insurance Policy"
+        )
+
+        self.pdf_frame.pack_forget()
 
         self.log.delete("1.0", tk.END)
         self.status.config(text="● READY")
@@ -404,61 +735,292 @@ class MainWindow:
 
     def validate_excel(self):
 
-        self.log.delete("1.0", tk.END)
+        ##################################################
+        # Clear previous log
+        ##################################################
+
+        self.log.delete(
+            "1.0",
+            tk.END
+        )
+
+        ##################################################
+        # Excel file
+        ##################################################
 
         excel_file = self.excel_file.get().strip()
 
         if excel_file == "":
-            self.set_status("No Excel File Selected")
-            messagebox.showerror("Validation Error", "Please select an Excel file.")
+
+            self.set_status(
+                "No Excel File Selected"
+            )
+
+            messagebox.showerror(
+                "Validation Error",
+                "Please select an Excel file."
+            )
+
             return
+
+        ##################################################
+        # File exists
+        ##################################################
 
         if not os.path.exists(excel_file):
-            self.set_status("File Not Found")
-            messagebox.showerror("Validation Error", "Selected file does not exist.")
+
+            self.set_status(
+                "File Not Found"
+            )
+
+            messagebox.showerror(
+                "Validation Error",
+                "Selected file does not exist."
+            )
+
             return
 
-        extension = os.path.splitext(excel_file)[1].lower()
+        ##################################################
+        # Extension
+        ##################################################
+
+        extension = os.path.splitext(
+            excel_file
+        )[1].lower()
 
         if extension != ".xlsx":
-            self.set_status("Invalid File")
-            messagebox.showerror("Validation Error", "Only .xlsx files are supported.")
+
+            self.set_status(
+                "Invalid File"
+            )
+
+            messagebox.showerror(
+                "Validation Error",
+                "Only .xlsx files are supported."
+            )
+
             return
 
+        ##################################################
+        # Validation
+        ##################################################
+
         try:
-            self.write_log("Starting Excel validation...")
 
-            validator = ExcelValidator()
-            result = validator.validate(excel_file)
+            self.write_log(
+                "Starting Excel validation..."
+            )
 
-            if result.success:
-                self.write_log("Excel validation completed successfully.")
-                self.set_status("Validation Successful")
-                self.set_ui_state("VALIDATED")
-                messagebox.showinfo("Validation", "Excel validated successfully.")
+            ##################################################
+            # Select validator based on operation
+            ##################################################
 
-            else:
-                self.set_status("Validation Failed")
-                self.set_ui_state("READY")
-                self.write_log(f"{len(result.errors)} validation error(s) found.")
-                self.write_log("-" * 70)
+            operation = self.operation.get()
 
-                for error in result.errors:
-                    self.write_log(f"Row {error.row} | {error.column} | {error.message}")
+            ##################################################
+            # Existing Policy workflow
+            ##################################################
 
-                self.write_log("-" * 70)
+            if operation == "Create Crop Insurance Policy":
 
-                messagebox.showerror(
-                    "Validation Failed",
-                    f"{len(result.errors)} validation error(s) found.\n\n"
-                    "Please correct the Excel file and validate again."
+                validator = ExcelValidator()
+
+                result = validator.validate(
+                    excel_file
                 )
 
+                ##################################################
+                # Existing validator result object
+                ##################################################
+
+                if result.success:
+
+                    self.write_log(
+                        "Excel validation completed successfully."
+                    )
+
+                    self.set_status(
+                        "Validation Successful"
+                    )
+
+                    self.set_ui_state(
+                        "VALIDATED"
+                    )
+
+                    messagebox.showinfo(
+                        "Validation",
+                        "Excel validated successfully."
+                    )
+
+                else:
+
+                    self.set_status(
+                        "Validation Failed"
+                    )
+
+                    self.set_ui_state(
+                        "READY"
+                    )
+
+                    self.write_log(
+                        f"{len(result.errors)} validation error(s) found."
+                    )
+
+                    self.write_log(
+                        "-" * 70
+                    )
+
+                    for error in result.errors:
+
+                        self.write_log(
+                            f"Row {error.row} | "
+                            f"{error.column} | "
+                            f"{error.message}"
+                        )
+
+                    self.write_log(
+                        "-" * 70
+                    )
+
+                    messagebox.showerror(
+
+                        "Validation Failed",
+
+                        f"{len(result.errors)} validation error(s) found.\n\n"
+                        "Please correct the Excel file and validate again."
+
+                    )
+
+                return
+
+            ##################################################
+            # Not Eligible workflow
+            ##################################################
+
+            elif operation == "Mark Account Not Eligible":
+
+                validator = NotEligibleExcelValidator()
+
+                valid, errors = validator.validate(
+                    excel_file
+                )
+
+                ##################################################
+                # Success
+                ##################################################
+
+                if valid:
+
+                    self.write_log(
+                        "Not Eligible Excel validation completed successfully."
+                    )
+
+                    self.set_status(
+                        "Validation Successful"
+                    )
+
+                    self.set_ui_state(
+                        "VALIDATED"
+                    )
+
+                    messagebox.showinfo(
+
+                        "Validation",
+
+                        "Not Eligible Excel validated successfully."
+
+                    )
+
+                ##################################################
+                # Failure
+                ##################################################
+
+                else:
+
+                    self.set_status(
+                        "Validation Failed"
+                    )
+
+                    self.set_ui_state(
+                        "READY"
+                    )
+
+                    self.write_log(
+                        f"{len(errors)} validation error(s) found."
+                    )
+
+                    self.write_log(
+                        "-" * 70
+                    )
+
+                    for error in errors:
+
+                        self.write_log(
+                            error
+                        )
+
+                    self.write_log(
+                        "-" * 70
+                    )
+
+                    messagebox.showerror(
+
+                        "Validation Failed",
+
+                        f"{len(errors)} validation error(s) found.\n\n"
+                        "Please correct the Excel file and validate again."
+
+                    )
+
+                return
+
+            ##################################################
+            # Unknown operation
+            ##################################################
+
+            else:
+
+                self.set_status(
+                    "Invalid Operation"
+                )
+
+                self.set_ui_state(
+                    "READY"
+                )
+
+                messagebox.showerror(
+
+                    "Validation Error",
+
+                    "Unknown processing operation selected."
+
+                )
+
+        ##################################################
+        # Unexpected validation error
+        ##################################################
+
         except Exception as ex:
-            self.set_status("Validation Failed")
-            self.set_ui_state("READY")
-            self.write_log(f"Validation Error : {str(ex)}")
-            messagebox.showerror("Validation Error", str(ex))
+
+            self.set_status(
+                "Validation Failed"
+            )
+
+            self.set_ui_state(
+                "READY"
+            )
+
+            self.write_log(
+                f"Validation Error : {str(ex)}"
+            )
+
+            messagebox.showerror(
+
+                "Validation Error",
+
+                str(ex)
+
+            )
 
     def start_upload(self):
 
@@ -671,6 +1233,270 @@ class MainWindow:
 
         self.root.destroy()
 
+    def browse_pdf(self):
+
+        filename = filedialog.askopenfilename(
+
+            title="Select Unified PDF",
+
+            filetypes=[
+                ("PDF Files", "*.pdf")
+            ]
+
+        )
+
+        if filename:
+
+            self.pdf_file.set(filename)
+
+            self.write_log(
+                f"PDF selected : {filename}"
+            )
+    def operation_changed(self, event=None):
+
+        operation = self.operation.get()
+
+        ##################################################
+        # Not Eligible
+        ##################################################
+
+        if operation == "Mark Account Not Eligible":
+
+            self.pdf_frame.pack(
+                fill="x",
+                padx=10,
+                pady=2,
+                # before=self.operation_combo
+            )
+
+        ##################################################
+        # Existing Policy flow
+        ##################################################
+
+        else:
+
+            self.pdf_file.set("")
+
+            self.pdf_frame.pack_forget()
+
+    def start_processing(self):
+
+        operation = self.operation.get()
+
+        ##################################################
+        # Existing policy workflow
+        ##################################################
+
+        if operation == "Create Crop Insurance Policy":
+
+            self.start_upload()
+
+            return
+
+        ##################################################
+        # Not Eligible
+        ##################################################
+
+        if operation == "Mark Account Not Eligible":
+
+            self.start_not_eligible()
+
+            return
+    def start_not_eligible(self):
+
+        if not self.logged_in:
+
+            messagebox.showerror(
+                "Not Eligible",
+                "Please login first."
+            )
+
+            return
+
+        ##################################################
+        # PDF required
+        ##################################################
+
+        pdf_file = self.pdf_file.get().strip()
+
+        if not pdf_file:
+
+            messagebox.showerror(
+                "Not Eligible",
+                "Please select the unified PDF file."
+            )
+
+            return
+
+        if not os.path.exists(pdf_file):
+
+            messagebox.showerror(
+                "Not Eligible",
+                "Selected PDF file does not exist."
+            )
+
+            return
+
+        ##################################################
+        # PDF extension
+        ##################################################
+
+        if Path(pdf_file).suffix.lower() != ".pdf":
+
+            messagebox.showerror(
+                "Not Eligible",
+                "Only PDF files are supported."
+            )
+
+            return
+
+        
+        ##################################################
+        # Start
+        ##################################################
+
+        self.set_ui_state(
+            "UPLOADING"
+        )
+
+        self.not_eligible_worker()
+    def not_eligible_worker(self):
+
+        self.reporter = Reporter(
+            logger=self.write_log
+        )
+
+        self.upload_running = True
+
+        self.update_progress(
+
+            current=0,
+
+            total=0,
+
+            success=0,
+
+            failed=0,
+
+            skipped=0
+
+        )
+
+        try:
+
+            ##################################################
+            # Read Excel
+            ##################################################
+
+            self.reporter.info(
+
+                "",
+
+                "UPLOAD",
+
+                "Reading Not Eligible Excel..."
+
+            )
+
+            reader = NotEligibleExcelReader()
+
+            accounts = reader.read(
+                self.excel_file.get()
+            )
+
+            self.reporter.info(
+
+                "",
+
+                "UPLOAD",
+
+                f"{len(accounts)} account(s) loaded."
+
+            )
+
+            ##################################################
+            # Workflow
+            ##################################################
+
+            workflow = NotEligibleWorkflowEngine(
+
+                navigator=self.navigator,
+
+                reporter=self.reporter,
+
+                worker=self.worker,
+
+                pdf_file=self.pdf_file.get(),
+
+                progress_callback=self.update_progress
+
+            )
+
+            workflow.process(
+                accounts
+            )
+
+            ##################################################
+            # Final progress
+            ##################################################
+
+            self.update_progress(
+
+                current=len(accounts),
+
+                total=len(accounts),
+
+                success=self.reporter.success_count,
+
+                failed=self.reporter.failed_count,
+
+                skipped=self.reporter.skipped_count
+
+            )
+
+            ##################################################
+            # Report
+            ##################################################
+
+            report_file = self.reporter.summary()
+
+            self.reporter.info(
+
+                "",
+
+                "REPORT",
+
+                f"Execution report exported successfully: {report_file}"
+
+            )
+
+            self.set_status(
+                "Completed"
+            )
+
+        except Exception as ex:
+
+            self.reporter.error(
+
+                "",
+
+                "UPLOAD",
+
+                str(ex)
+
+            )
+
+            self.set_status(
+                "Upload Failed"
+            )
+
+        finally:
+
+            self.upload_running = False
+
+            self.set_ui_state(
+                "COMPLETED"
+            )
     def run(self):
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
         self.root.mainloop()
