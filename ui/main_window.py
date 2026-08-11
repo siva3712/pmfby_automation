@@ -30,6 +30,18 @@ from not_eligible.workflow_engine import (
     NotEligibleWorkflowEngine
 )
 
+from change_account.excel_validator import (
+    ChangeAccountExcelValidator
+)
+
+from change_account.excel_reader import (
+    ChangeAccountExcelReader
+)
+
+from change_account.workflow_engine import (
+    ChangeAccountWorkflowEngine
+)
+
 
 class MainWindow:
 
@@ -287,7 +299,8 @@ class MainWindow:
 
             values=[
                 "Create Crop Insurance Policy",
-                "Mark Account Not Eligible"
+                "Mark Account Not Eligible",
+                "Change KCC Account Number"
             ],
 
             state="readonly"
@@ -573,6 +586,11 @@ class MainWindow:
             / "PMFBY_NotEligible_Template.xlsx"
         )
 
+        change_account_template = (
+            template_path
+            / "PMFBY_Change_Accounts.xlsx"
+        )
+
         ##################################################
         # Debug log - useful during development
         ##################################################
@@ -587,6 +605,9 @@ class MainWindow:
 
         self.write_log(
             f"Not Eligible template: {not_eligible_template}"
+        )
+        self.write_log(
+            f"Not Eligible template: {change_account_template}"
         )
 
         ##################################################
@@ -624,6 +645,22 @@ class MainWindow:
             )
 
             return
+        ##################################################
+        # Check Change Account template
+        ###################################################
+        if not change_account_template.is_file():
+
+            messagebox.showerror(
+
+                "Template Error",
+
+                f"Change Account template was not found.\n\n"
+                f"Expected location:\n"
+                f"{change_account_template}"
+
+            )
+
+            return
 
         ##################################################
         # Copy templates
@@ -653,6 +690,15 @@ class MainWindow:
 
             )
 
+            shutil.copy2(
+
+                change_account_template,
+
+                Path(destination_folder)
+                / "PMFBY_Change_Accounts.xlsx"
+
+            )
+
             ##################################################
             # Success
             ##################################################
@@ -665,7 +711,7 @@ class MainWindow:
 
                 "Templates",
 
-                "Both PMFBY templates were downloaded successfully."
+                "All PMFBY templates were downloaded successfully."
 
             )
 
@@ -961,6 +1007,106 @@ class MainWindow:
 
                     self.write_log(
                         "-" * 70
+                    )
+
+                    messagebox.showerror(
+
+                        "Validation Failed",
+
+                        f"{len(errors)} validation error(s) found.\n\n"
+                        "Please correct the Excel file and validate again."
+
+                    )
+
+                return
+             ########################################################################
+            # Change Account workflow   
+            ########################################################################
+            elif operation == "Change KCC Account Number":
+
+                validator = ChangeAccountExcelValidator()
+
+                valid, errors = validator.validate(
+
+                    excel_file
+
+                )
+
+                ##################################################
+                # Validation successful
+                ##################################################
+
+                if valid:
+
+                    self.write_log(
+
+                        "Change Account Excel validation "
+                        "completed successfully."
+
+                    )
+
+                    self.set_status(
+
+                        "Validation Successful"
+
+                    )
+
+                    self.set_ui_state(
+
+                        "VALIDATED"
+
+                    )
+
+                    messagebox.showinfo(
+
+                        "Validation",
+
+                        "Change Account Excel validated successfully."
+
+                    )
+
+                ##################################################
+                # Validation failed
+                ##################################################
+
+                else:
+
+                    self.set_status(
+
+                        "Validation Failed"
+
+                    )
+
+                    self.set_ui_state(
+
+                        "READY"
+
+                    )
+
+                    self.write_log(
+
+                        f"{len(errors)} validation error(s) found."
+
+                    )
+
+                    self.write_log(
+
+                        "-" * 70
+
+                    )
+
+                    for error in errors:
+
+                        self.write_log(
+
+                            error
+
+                        )
+
+                    self.write_log(
+
+                        "-" * 70
+
                     )
 
                     messagebox.showerror(
@@ -1302,6 +1448,169 @@ class MainWindow:
             self.start_not_eligible()
 
             return
+        ##################################################
+        # Change Account workflow
+        ##################################################
+        if operation == "Change KCC Account Number":
+
+            self.start_change_account()
+
+            return
+    def start_change_account(self):
+
+        if not self.logged_in:
+
+            messagebox.showerror(
+                "Not Eligible",
+                "Please login first."
+            )
+
+            return
+       
+        ##################################################
+        # Start
+        ##################################################
+
+        self.set_ui_state(
+            "UPLOADING"
+        )
+
+        self.change_account_worker()
+    def change_account_worker(self):
+
+        self.reporter = Reporter(
+            logger=self.write_log
+        )
+
+        self.upload_running = True
+
+        self.update_progress(
+
+            current=0,
+
+            total=0,
+
+            success=0,
+
+            failed=0,
+
+            skipped=0
+
+        )
+
+        try:
+
+            ##################################################
+            # Read Excel
+            ##################################################
+
+            self.reporter.info(
+
+                "",
+
+                "UPLOAD",
+
+                "Reading Not Eligible Excel..."
+
+            )
+
+            reader = ChangeAccountExcelReader()
+
+            accounts = reader.read(
+                self.excel_file.get()
+            )
+
+            self.reporter.info(
+
+                "",
+
+                "UPLOAD",
+
+                f"{len(accounts)} account(s) loaded."
+
+            )
+
+            ##################################################
+            # Workflow
+            ##################################################
+
+            workflow = ChangeAccountWorkflowEngine(
+
+                navigator=self.navigator,
+
+                reporter=self.reporter,
+
+                worker=self.worker,
+
+                progress_callback=self.update_progress
+
+            )
+
+            workflow.process(
+                accounts
+            )
+
+            ##################################################
+            # Final progress
+            ##################################################
+
+            self.update_progress(
+
+                current=len(accounts),
+
+                total=len(accounts),
+
+                success=self.reporter.success_count,
+
+                failed=self.reporter.failed_count,
+
+                skipped=self.reporter.skipped_count
+
+            )
+
+            ##################################################
+            # Report
+            ##################################################
+
+            report_file = self.reporter.summary()
+
+            self.reporter.info(
+
+                "",
+
+                "REPORT",
+
+                f"Execution report exported successfully: {report_file}"
+
+            )
+
+            self.set_status(
+                "Completed"
+            )
+
+        except Exception as ex:
+
+            self.reporter.error(
+
+                "",
+
+                "UPLOAD",
+
+                str(ex)
+
+            )
+
+            self.set_status(
+                "Upload Failed"
+            )
+
+        finally:
+
+            self.upload_running = False
+
+            self.set_ui_state(
+                "COMPLETED"
+            )
     def start_not_eligible(self):
 
         if not self.logged_in:

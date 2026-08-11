@@ -11,10 +11,9 @@ class NotEligibleExcelValidator:
 
         "Crop not notified",
 
-        "KCC-loan taken for non crop activity(s)",
+        "KCC-loan taken for non-crop activity(s)",
 
-        "Kcc not issued for current-season"
-
+        "KCC not issued for current-season"
     }
 
     REQUIRED_HEADERS = {
