@@ -357,13 +357,13 @@ class NotEligibleProcessor:
             # Success
             ##################################################
 
-            self.reporter.account_success(
+            # self.reporter.account_success(
 
-                account_no,
+            #     account_no,
 
-                "Account marked Not Eligible successfully."
+            #     "Account marked Not Eligible successfully."
 
-            )
+            # )
 
             self.reporter.record_result(
 
