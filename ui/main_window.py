@@ -524,7 +524,7 @@ class MainWindow:
         ).pack(side="left", expand=True)
 
         tk.Label(
-            footer, text="Version 1.0.0", bg=bg_color, fg=text_color, font=("Segoe UI", 9)
+            footer, text="Version 1.1.0", bg=bg_color, fg=text_color, font=("Segoe UI", 9)
         ).pack(side="right", padx=15)
 
     def download_template(self):
