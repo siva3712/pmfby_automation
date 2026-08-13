@@ -85,23 +85,23 @@ class NotEligibleProcessor:
             # Search
             ##################################################
 
-            self.reporter.info(
+            # self.reporter.info(
 
-                account_no,
+            #     account_no,
 
-                "SEARCH_ACCOUNT",
+            #     "SEARCH_ACCOUNT",
 
-                "Searching..."
+            #     "Searching..."
 
-            )
+            # )
 
-            self.wait.click(
+            # self.wait.click(
 
-                self.page.get_by_title(
-                    "Search"
-                )
+            #     self.page.get_by_title(
+            #         "Search"
+            #     )
 
-            )
+            # )
 
             ##################################################
             # Wait for Not Eligible option
